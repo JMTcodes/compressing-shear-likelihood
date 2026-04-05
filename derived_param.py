@@ -303,10 +303,10 @@ def LogLike(d,mu,sig):
     #ll = -0.5 * (((d - mu)/sig)**2)
     return ll
 
-def importance_sampling(samples,param,mu,sig):
+def importance_sampling(samples,paramName,mu=None,sig=None):
     """## Importance Sampling:
 
-    * Given samples obtain LogLikes(gaussian) and reweight the to the currently stored likelihoods,
+    * Given samples and paramName obtain LogLikes(gaussian) and reweight the to the currently stored likelihoods,
     and re-weighting accordingly, e.g. for adding a new data constraint. 
     * Note that LogLikes in reweightAddingLogLikes(LogLikes) is an array of -log(likelihood) for each sample to adjust.
 
@@ -314,23 +314,24 @@ def importance_sampling(samples,param,mu,sig):
     Parameters:
 
     samples: MCsamples
-    param: array_like
-    mu: mean of param
-    sig: standard deviation of 
+    paramName: key eg:'S8mod'
+    mu: mean of paramName
+    sig: standard deviation of paramName
 
     Returns:
-    out : ndarray
+    out : IS MCsamples
     
     """
 
-    ## IDEA:
-    #importance_sampling(sample,mu=None,sig=NOne):
-    #w=sample.weights
-    #S8m=sample.samples[:,sample.paramNames.numberOfName('S8mod')]
-    #if mu=None:
-    #mu = np.average(S8m, weights=w)
-    #if ig=NOne:
-    #sig =weighted_std(S8m,w)
+    w=samples.weights
+    param=samples.samples[:,samples.paramNames.numberOfName(paramName)]
+
+    #paramName => key = 'S8mod'
+    if mu==None:
+        mu = np.average(param, weights=w)
+
+    if sig==None:
+        sig=weighted_std(param,w)
 
 
     new_samples = MCSamples.copy(samples)
