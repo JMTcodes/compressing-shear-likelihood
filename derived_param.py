@@ -9,7 +9,6 @@ import numpy as np
 import scipy as sp
 import matplotlib
 import matplotlib.pyplot as plt
-import pandas as pd
 import math, copy
 
 import getdist as gd
@@ -27,6 +26,8 @@ from matplotlib import rc
 import colorsys
 rc('text',usetex=True)
 from matplotlib.ticker import FormatStrFormatter
+
+# Importing Dr. Muir's helper functions
 import getdist_chainplot_utils as gdu
 
 # TO DO, add TATT params
@@ -215,7 +216,7 @@ DEFAULT_PLABELS = {\
                    'xlens--xlens_all':r'$X_{\rm lens}$',
 }
 
-def prep_chain2(chainfname,chainlabel,kdesmooth=.5, paramlabels = DEFAULT_PLABELS, rangedict=None, chaindir=''):
+def prep_chain2(chainfname,chainlabel,num,kdesmooth=.5, paramlabels = DEFAULT_PLABELS, rangedict=None, chaindir=''):
     """
     Read in chain, add some derived parameters that we're likely to want
     May want to add/remove things here
@@ -232,7 +233,7 @@ def prep_chain2(chainfname,chainlabel,kdesmooth=.5, paramlabels = DEFAULT_PLABEL
                           paramlabels = paramlabels, rangedict = rangedict)
     print('>>>',chainfname,gdchain)
     if gdchain is not None:
-        add_S8_mod(gdchain)
+        add_S8_mod(gdchain,num)
         gdu.add_S8(gdchain)
         gdu.add_As_scaled(gdchain)
         gdu.add_physical_densities(gdchain)
@@ -245,7 +246,7 @@ def prep_chain2(chainfname,chainlabel,kdesmooth=.5, paramlabels = DEFAULT_PLABEL
     #print([n.name for n in gdchain.getParamNames().names])
     return gdchain
 
-def add_S8_mod(gdchains):
+def add_S8_mod(gdchains,num=None):
     """
     Takes in a single MCSample object or a list of them, goes through and
     adds a modified derived parameter S8. 
@@ -263,9 +264,8 @@ def add_S8_mod(gdchains):
         S8ind_mod = ch.paramNames.numberOfName('S8mod')
         if S8ind_mod!=-1:
             continue
-
         newkey = 'S8mod'
-        newlabel = 'S_{8mod}'
+        newlabel = "S_{8mod}"
         omind = ch.paramNames.numberOfName('cosmological_parameters--omega_m')
         sig8ind = ch.paramNames.numberOfName('COSMOLOGICAL_PARAMETERS--SIGMA_8')
         if sig8ind==-1:# wasn't found
@@ -273,9 +273,82 @@ def add_S8_mod(gdchains):
             sig8ind = ch.paramNames.numberOfName('COSMOLOGICAL_PARAMETERS--SIGMA_8'.lower())
         om = ch.samples[:,omind]
         sig8 = ch.samples[:,sig8ind]
-        num = float(input("Enter power "))
+        #num = float(input("Enter power "))
         if not np.all(np.isnan(sig8)):
-            S8mod = sig8*((om/0.3)**(num))
-            #S8mod = sig8*((om/0.3)**(0.5))
+            if num == None:
+                S8mod = sig8*((om/0.3)**(0.5))
+            else:
+                S8mod = sig8*((om/0.3)**(num))
             S8modrange = [None,None] #no input range for sigma8
             ch.addDerived(S8mod,name=newkey,label = newlabel+str(num),range=S8modrange)
+
+def weighted_std(x,weights=None):
+    """## Weighted standard deviation:
+
+    * given arr x and weights w obtain weighted standaed deviation.
+    
+    Parameters:
+    x: Array of the posterior distribution
+    weights: weights associated with the values in x
+    
+    Returns:
+    float: weighted standard deviation
+    """
+    avg = np.average(x , weights=weights)
+    var = np.average((x-avg)**2, weights=weights)
+    return np.sqrt(var)
+
+def LogLike(d,mu,sig):
+    ll = -0.5 * (((d - mu)/sig)**2 + np.log(2*np.pi)+np.log(sig**2))
+    #ll = -0.5 * (((d - mu)/sig)**2)
+    return ll
+
+def importance_sampling(samples,param,mu,sig):
+    """## Importance Sampling:
+
+    * Given samples obtain LogLikes(gaussian) and reweight the to the currently stored likelihoods,
+    and re-weighting accordingly, e.g. for adding a new data constraint. 
+    * Note that LogLikes in reweightAddingLogLikes(LogLikes) is an array of -log(likelihood) for each sample to adjust.
+
+    
+    Parameters:
+
+    samples: MCsamples
+    param: array_like
+    mu: mean of param
+    sig: standard deviation of 
+
+    Returns:
+    out : ndarray
+    
+    """
+
+    ## IDEA:
+    #importance_sampling(sample,mu=None,sig=NOne):
+    #w=sample.weights
+    #S8m=sample.samples[:,sample.paramNames.numberOfName('S8mod')]
+    #if mu=None:
+    #mu = np.average(S8m, weights=w)
+    #if ig=NOne:
+    #sig =weighted_std(S8m,w)
+
+
+    new_samples = MCSamples.copy(samples)
+    LogLikes = -LogLike(param,mu,sig)
+    new_samples.reweightAddingLogLikes(LogLikes)
+    return new_samples
+
+def ESS(samples):
+    """## Effective Sample Size(ESS):
+    Given Samples obtain the ESS
+    
+    Parameters:
+
+    samples: MCsamples
+
+    Returns:
+    out: float
+    
+    """
+    w = samples.weights
+    return (np.sum(w))**2 / np.sum(w**2)

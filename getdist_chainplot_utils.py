@@ -19,7 +19,7 @@ import numpy as np
 import scipy as sp
 import matplotlib
 import matplotlib.pyplot as plt
-import pandas as pd
+#import pandas as pd
 import math, copy
 
 import getdist as gd
